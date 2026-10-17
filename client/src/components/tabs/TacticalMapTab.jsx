@@ -8,7 +8,8 @@ export default function TacticalMapTab({
   stats = {},
   liveAlerts = [],
   onSelectIncident,
-  onSelectDevice
+  onSelectDevice,
+  currentUser = null
 }) {
   const [mapCenter, setMapCenter] = useState(null);
   const [selectedIncidentId, setSelectedIncidentId] = useState(null);
@@ -80,75 +81,77 @@ export default function TacticalMapTab({
   return (
     <div className="space-y-6">
 
-      {/* DEFCON Status Bar & KPIs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {/* KPI 1: Amenazas Críticas */}
-        <div className={`p-4 rounded-2xl border ${criticalCount > 0 ? 'bg-red-950/40 border-red-500/50 shadow-lg shadow-red-900/20' : 'bg-slate-900/60 border-slate-800'} flex items-center justify-between`}>
-          <div>
-            <span className="font-mono text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">
-              Amenazas Críticas
-            </span>
-            <div className={`text-2xl sm:text-3xl font-black font-mono ${criticalCount > 0 ? 'text-red-400 animate-pulse' : 'text-slate-200'}`}>
-              {criticalCount}
+      {/* DEFCON Status Bar & KPIs (Solo visible para operadores autenticados) */}
+      {currentUser && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {/* KPI 1: Amenazas Críticas */}
+          <div className={`p-4 rounded-2xl border ${criticalCount > 0 ? 'bg-red-950/40 border-red-500/50 shadow-lg shadow-red-900/20' : 'bg-slate-900/60 border-slate-800'} flex items-center justify-between`}>
+            <div>
+              <span className="font-mono text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">
+                Amenazas Críticas
+              </span>
+              <div className={`text-2xl sm:text-3xl font-black font-mono ${criticalCount > 0 ? 'text-red-400 animate-pulse' : 'text-slate-200'}`}>
+                {criticalCount}
+              </div>
+              <span className="text-[10px] text-slate-400">
+                {criticalCount > 0 ? 'Acción inmediata requerida' : 'Sin alertas rojas'}
+              </span>
             </div>
-            <span className="text-[10px] text-slate-400">
-              {criticalCount > 0 ? 'Acción inmediata requerida' : 'Sin alertas rojas'}
-            </span>
+            <div className={`p-3 rounded-xl ${criticalCount > 0 ? 'bg-red-600/20 text-red-400' : 'bg-slate-800 text-slate-500'}`}>
+              <ShieldAlert className="w-6 h-6" />
+            </div>
           </div>
-          <div className={`p-3 rounded-xl ${criticalCount > 0 ? 'bg-red-600/20 text-red-400' : 'bg-slate-800 text-slate-500'}`}>
-            <ShieldAlert className="w-6 h-6" />
-          </div>
-        </div>
 
-        {/* KPI 2: Sismos Detectados */}
-        <div className="p-4 rounded-2xl border bg-slate-900/60 border-slate-800 flex items-center justify-between">
-          <div>
-            <span className="font-mono text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">
-              Eventos Sísmicos
-            </span>
-            <div className="text-2xl sm:text-3xl font-black font-mono text-amber-400">
-              {stats?.byType?.sismo ?? incidents.filter((i) => i.incidentType === 'sismo').length}
+          {/* KPI 2: Sismos Detectados */}
+          <div className="p-4 rounded-2xl border bg-slate-900/60 border-slate-800 flex items-center justify-between">
+            <div>
+              <span className="font-mono text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">
+                Eventos Sísmicos
+              </span>
+              <div className="text-2xl sm:text-3xl font-black font-mono text-amber-400">
+                {stats?.byType?.sismo ?? incidents.filter((i) => i.incidentType === 'sismo').length}
+              </div>
+              <span className="text-[10px] text-slate-400">Umbral: &gt;14.50 m/s²</span>
             </div>
-            <span className="text-[10px] text-slate-400">Umbral: &gt;14.50 m/s²</span>
+            <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400">
+              <Activity className="w-6 h-6" />
+            </div>
           </div>
-          <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400">
-            <Activity className="w-6 h-6" />
-          </div>
-        </div>
 
-        {/* KPI 3: Inundaciones OCR */}
-        <div className="p-4 rounded-2xl border bg-slate-900/60 border-slate-800 flex items-center justify-between">
-          <div>
-            <span className="font-mono text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">
-              Alertas Inundación
-            </span>
-            <div className="text-2xl sm:text-3xl font-black font-mono text-cyan-400">
-              {stats?.byType?.inundacion ?? incidents.filter((i) => i.incidentType === 'inundacion').length}
+          {/* KPI 3: Inundaciones OCR */}
+          <div className="p-4 rounded-2xl border bg-slate-900/60 border-slate-800 flex items-center justify-between">
+            <div>
+              <span className="font-mono text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">
+                Alertas Inundación
+              </span>
+              <div className="text-2xl sm:text-3xl font-black font-mono text-cyan-400">
+                {stats?.byType?.inundacion ?? incidents.filter((i) => i.incidentType === 'inundacion').length}
+              </div>
+              <span className="text-[10px] text-slate-400">Visión computacional</span>
             </div>
-            <span className="text-[10px] text-slate-400">Visión computacional</span>
+            <div className="p-3 rounded-xl bg-cyan-500/10 text-cyan-400">
+              <Waves className="w-6 h-6" />
+            </div>
           </div>
-          <div className="p-3 rounded-xl bg-cyan-500/10 text-cyan-400">
-            <Waves className="w-6 h-6" />
-          </div>
-        </div>
 
-        {/* KPI 4: Nodos Móviles Online */}
-        <div className="p-4 rounded-2xl border bg-slate-900/60 border-slate-800 flex items-center justify-between">
-          <div>
-            <span className="font-mono text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">
-              Nodos Centinela
-            </span>
-            <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-400">
-              {onlineDevicesCount}
-              <span className="text-xs text-slate-500 font-normal"> / {devices.length}</span>
+          {/* KPI 4: Nodos Móviles Online */}
+          <div className="p-4 rounded-2xl border bg-slate-900/60 border-slate-800 flex items-center justify-between">
+            <div>
+              <span className="font-mono text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">
+                Nodos Centinela
+              </span>
+              <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-400">
+                {onlineDevicesCount}
+                <span className="text-xs text-slate-500 font-normal"> / {devices.length}</span>
+              </div>
+              <span className="text-[10px] text-emerald-400/80">Transmitiendo en vivo</span>
             </div>
-            <span className="text-[10px] text-emerald-400/80">Transmitiendo en vivo</span>
-          </div>
-          <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400">
-            <Radio className="w-6 h-6" />
+            <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400">
+              <Radio className="w-6 h-6" />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Barra de Control Táctico de Visualización */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-[#0b101b] border border-slate-800 shadow-lg">

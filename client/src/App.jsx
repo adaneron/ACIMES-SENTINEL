@@ -556,6 +556,7 @@ export default function App() {
             devices={devices}
             stats={stats}
             liveAlerts={liveAlerts}
+            currentUser={currentUser}
             onSelectIncident={(inc) => setEvidenceModalData(inc)}
             onSelectDevice={(dev) => {
               if (isAdmin) {
