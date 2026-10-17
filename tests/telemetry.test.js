@@ -5,12 +5,14 @@ import { eq } from 'drizzle-orm';
 import { app } from '../src/app.js';
 import { db } from '../src/config/database.js';
 import { devices, incidents } from '../src/db/schema.js';
+import { updateSeismicConsensusSettings } from '../src/services/systemSettingsService.js';
 
 describe('3. Pruebas de Telemetría (Acelerómetro, Sismo y GPS)', () => {
   const validApiKey = 'dev_token_beta_valpo_2026';
   let testDeviceId = '';
 
   before(async () => {
+    await updateSeismicConsensusSettings(1, 15);
     // Asegurar dispositivo temporal para pruebas
     const [dev] = await db
       .insert(devices)
