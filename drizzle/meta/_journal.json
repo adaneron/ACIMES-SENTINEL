@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1792176490710,
+      "tag": "0000_great_valeria_richards",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792179330000,
+      "tag": "0001_add_device_authorization",
+      "breakpoints": true
+    }
+  ]
+}

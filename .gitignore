@@ -1,0 +1,25 @@
+node_modules/
+client/node_modules/
+client/dist/
+.env
+uploads/*
+!uploads/.gitkeep
+!uploads/downloads
+!uploads/downloads/Centinela-ACIMES.apk
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+coverage/
+dist/
+*.log
+
+# Android App
+centinela_app/.gradle/
+centinela_app/build/
+centinela_app/*/build/
+centinela_app/.idea/
+centinela_app/*.iml
+centinela_app/*/*.iml
+centinela_app/local.properties
+

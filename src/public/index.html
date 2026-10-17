@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RALLY 2026 | Plataforma de Notificaciones & Telemetría en Tiempo Real</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              900: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+
+  <!-- Socket.IO Client -->
+  <script src="/socket.io/socket.io.js"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-blue-600 selection:text-white">
+
+  <!-- ========================================================================= -->
+  <!-- TOAST CONTAINER (Notificaciones en tiempo real)                           -->
+  <!-- ========================================================================= -->
+  <div id="toast-container" class="fixed top-20 right-4 z-50 flex flex-col gap-2 max-w-md w-full pointer-events-none"></div>
+
+  <!-- ========================================================================= -->
+  <!-- BARRA DE NAVEGACIÓN SUPERIOR                                              -->
+  <!-- ========================================================================= -->
+  <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-40 shadow-lg backdrop-blur-md bg-opacity-95">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Logo y Título -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-md shadow-blue-500/20 text-white">
+          <i class="fa-solid fa-satellite-dish text-xl"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-bold text-lg text-white tracking-wide">RALLY 2026</h1>
+            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-live"></span>
+              EN VIVO
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 hidden sm:block">Centro de Telemetría, Alertas Sísmicas e Inundaciones</p>
+        </div>
+      </div>
+
+      <!-- Controles de Estado y Autenticación -->
+      <div class="flex items-center gap-3">
+        <!-- Indicador de WebSocket -->
+        <div id="ws-status" class="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-slate-800 border border-slate-700 text-slate-300">
+          <i class="fa-solid fa-circle-dot text-emerald-400 text-[10px]"></i>
+          <span>WebSockets Conectado</span>
+        </div>
+
+        <!-- Botón de Audio de Alertas -->
+        <button id="toggle-audio-btn" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition" title="Alternar Sonido de Sirena">
+          <i id="audio-icon" class="fa-solid fa-volume-high"></i>
+        </button>
+
+        <!-- Modo de Acceso (Usuario Regular vs Administrador) -->
+        <div id="user-mode-container" class="flex items-center gap-2">
+          <!-- Vista Usuario Regular por defecto (Sin Login) -->
+          <div id="guest-badge" class="flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-800/80 border border-slate-700 text-xs text-slate-300">
+            <i class="fa-solid fa-globe text-blue-400"></i>
+            <span>Acceso Público</span>
+          </div>
+
+          <button id="login-open-btn" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/20 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-lock"></i>
+            <span>Login Admin</span>
+          </button>
+
+          <!-- Vista Admin Autenticado (Oculta inicialmente) -->
+          <div id="admin-logged-box" class="hidden flex items-center gap-2">
+            <span class="text-xs font-medium text-emerald-400 flex items-center gap-1 bg-emerald-950/40 border border-emerald-800/40 px-2.5 py-1 rounded-lg">
+              <i class="fa-solid fa-shield-halved"></i>
+              <span id="admin-user-name">Admin</span>
+            </span>
+            <button id="logout-btn" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-red-950/40 text-slate-300 hover:text-red-400 border border-slate-700 hover:border-red-800/50 transition">
+              <i class="fa-solid fa-right-from-bracket"></i>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Pestañas de Navegación Principal -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-800/80 flex gap-2 overflow-x-auto py-1.5">
+      <button class="nav-tab active-tab px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition bg-blue-600 text-white shadow-sm" data-tab="tab-map">
+        <i class="fa-solid fa-map-location-dot"></i>
+        <span>Mapa en Vivo & Alertas</span>
+      </button>
+
+      <button class="nav-tab px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition text-slate-400 hover:text-white hover:bg-slate-800" data-tab="tab-reports">
+        <i class="fa-solid fa-file-waveform"></i>
+        <span>Informes & Evidencias</span>
+        <span id="reports-counter" class="px-1.5 py-0.2 rounded-full text-[10px] bg-red-600/30 text-red-400 border border-red-500/30">0</span>
+      </button>
+
+      <button class="nav-tab px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition text-slate-400 hover:text-white hover:bg-slate-800 admin-only hidden" data-tab="tab-devices">
+        <i class="fa-solid fa-mobile-screen-button"></i>
+        <span>Dispositivos & Heartbeats</span>
+        <span id="devices-online-counter" class="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-600/30 text-emerald-400 border border-emerald-500/30">0</span>
+      </button>
+
+      <button class="nav-tab px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition text-slate-400 hover:text-white hover:bg-slate-800 admin-only hidden" data-tab="tab-simulator">
+        <i class="fa-solid fa-flask"></i>
+        <span>Simulador Android</span>
+        <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30">Test</span>
+      </button>
+
+      <button class="nav-tab px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition text-slate-400 hover:text-white hover:bg-slate-800 admin-only hidden" data-tab="tab-admin">
+        <i class="fa-solid fa-user-shield"></i>
+        <span>Panel Admin & Auditoría</span>
+        <span id="pending-admins-counter" class="hidden px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30">0</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ========================================================================= -->
+  <!-- CONTENIDO PRINCIPAL                                                       -->
+  <!-- ========================================================================= -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+    <!-- BANNER DE ALERTA SÍSMICA O INUNDACIÓN EN VIVO (Aparece dinámicamente) -->
+    <div id="critical-alert-banner" class="hidden rounded-xl border border-red-500/50 bg-red-950/60 p-4 shadow-xl backdrop-blur-md">
+      <div class="flex items-start justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="p-3 bg-red-600 text-white rounded-xl shadow-lg animate-pulse">
+            <i class="fa-solid fa-triangle-exclamation text-2xl"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white uppercase">Alerta Inmediata</span>
+              <span id="banner-incident-type" class="text-xs text-red-300 font-mono">SISMO DETECTADO</span>
+            </div>
+            <h2 id="banner-incident-title" class="text-lg font-bold text-white mt-0.5">Movimiento Telúrico Fuerte</h2>
+            <p id="banner-incident-desc" class="text-xs text-red-200 mt-0.5">Aceleración superior al umbral crítico.</p>
+          </div>
+        </div>
+        <button id="banner-dismiss-btn" class="text-slate-400 hover:text-white text-sm p-1">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- --------------------------------------------------------------------- -->
+    <!-- PESTAÑA 1: MAPA EN VIVO & CENTRO DE COMANDO                           -->
+    <!-- --------------------------------------------------------------------- -->
+    <section id="tab-map" class="tab-content space-y-6">
+      
+      <!-- Métricas Rápidas KPI -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+          <div>
+            <p class="text-xs font-medium text-slate-400">Dispositivos Activos</p>
+            <p id="kpi-devices-online" class="text-2xl font-bold text-emerald-400 mt-1">--</p>
+          </div>
+          <div class="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+            <i class="fa-solid fa-wifi text-lg"></i>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+          <div>
+            <p class="text-xs font-medium text-slate-400">Incidencias Activas</p>
+            <p id="kpi-incidents-active" class="text-2xl font-bold text-red-400 mt-1">--</p>
+          </div>
+          <div class="w-10 h-10 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400">
+            <i class="fa-solid fa-bell text-lg"></i>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+          <div>
+            <p class="text-xs font-medium text-slate-400">Sismos Detectados</p>
+            <p id="kpi-sismos-count" class="text-2xl font-bold text-amber-400 mt-1">--</p>
+          </div>
+          <div class="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+            <i class="fa-solid fa-earth-americas text-lg"></i>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+          <div>
+            <p class="text-xs font-medium text-slate-400">Inundaciones / OCR</p>
+            <p id="kpi-floods-count" class="text-2xl font-bold text-cyan-400 mt-1">--</p>
+          </div>
+          <div class="w-10 h-10 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+            <i class="fa-solid fa-water text-lg"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Contenedor del Mapa y Panel Lateral -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Mapa Interactivo (2 columnas en pantallas grandes) -->
+        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl flex flex-col h-[560px]">
+          <div class="bg-slate-900/90 border-b border-slate-800 px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-crosshairs text-blue-400"></i>
+              <h3 class="text-sm font-semibold text-white">Geolocalización en Tiempo Real de Dispositivos & Eventos</h3>
+            </div>
+            <div class="flex items-center gap-2 text-xs">
+              <span class="flex items-center gap-1 text-emerald-400"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> Online</span>
+              <span class="flex items-center gap-1 text-red-400 ml-2"><span class="w-2 h-2 rounded-full bg-red-500"></span> Offline / Alerta</span>
+            </div>
+          </div>
+          <div id="live-map" class="flex-1 w-full z-10"></div>
+        </div>
+
+        <!-- Panel Lateral: Flujo de Alertas en Tiempo Real -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col h-[560px]">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-tower-broadcast text-red-400"></i>
+              <h3 class="text-sm font-semibold text-white">Alertas en Vivo</h3>
+            </div>
+            <span id="alerts-live-badge" class="text-[10px] uppercase font-bold text-slate-400">Socket Stream</span>
+          </div>
+
+          <div id="live-alerts-list" class="flex-1 overflow-y-auto space-y-3 pr-1">
+            <!-- Las alertas entrantes se insertan aquí vía JS -->
+            <div class="text-center py-12 text-slate-500 text-xs">
+              <i class="fa-solid fa-shield-cat text-3xl mb-2 text-slate-600 block"></i>
+              Sin incidentes críticos pendientes.
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- --------------------------------------------------------------------- -->
+    <!-- PESTAÑA 2: INFORMES & EVIDENCIAS                                      -->
+    <!-- --------------------------------------------------------------------- -->
+    <section id="tab-reports" class="tab-content hidden space-y-6">
+      
+      <!-- Barra de Filtros y Búsqueda -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex flex-wrap items-center gap-3">
+          
+          <!-- Filtro por Tipo -->
+          <div>
+            <label class="block text-[11px] text-slate-400 mb-1">Tipo de Incidencia</label>
+            <select id="filter-type" class="bg-slate-800 border border-slate-700 rounded-lg text-xs text-white px-3 py-1.5 focus:outline-none focus:border-blue-500">
+              <option value="">Todos los tipos</option>
+              <option value="sismo">Sismo (Acelerómetro)</option>
+              <option value="inundacion">Inundación (Cámara / OCR)</option>
+              <option value="bateria_critica">Batería Crítica</option>
+              <option value="movimiento_brusco">Movimiento Brusco</option>
+              <option value="temperatura_extrema">Temperatura Extrema</option>
+              <option value="manual">Manual</option>
+            </select>
+          </div>
+
+          <!-- Filtro por Severidad -->
+          <div>
+            <label class="block text-[11px] text-slate-400 mb-1">Severidad</label>
+            <select id="filter-severity" class="bg-slate-800 border border-slate-700 rounded-lg text-xs text-white px-3 py-1.5 focus:outline-none focus:border-blue-500">
+              <option value="">Todas las severidades</option>
+              <option value="critica">Crítica</option>
+              <option value="alta">Alta</option>
+              <option value="media">Media</option>
+              <option value="baja">Baja</option>
+            </select>
+          </div>
+
+          <!-- Filtro por Estado -->
+          <div>
+            <label class="block text-[11px] text-slate-400 mb-1">Estado</label>
+            <select id="filter-status" class="bg-slate-800 border border-slate-700 rounded-lg text-xs text-white px-3 py-1.5 focus:outline-none focus:border-blue-500">
+              <option value="">Todos los estados</option>
+              <option value="activa">Activa</option>
+              <option value="en_proceso">En Proceso</option>
+              <option value="resuelta">Resuelta</option>
+              <option value="falsa_alarma">Falsa Alarma</option>
+            </select>
+          </div>
+
+          <!-- Filtro por Dispositivo Nodo -->
+          <div>
+            <label class="block text-[11px] text-slate-400 mb-1">Dispositivo Nodo</label>
+            <select id="filter-device" class="bg-slate-800 border border-slate-700 rounded-lg text-xs text-white px-3 py-1.5 focus:outline-none focus:border-blue-500">
+              <option value="">Todos los dispositivos</option>
+            </select>
+          </div>
+
+          <button id="apply-filters-btn" class="mt-4 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition">
+            <i class="fa-solid fa-filter mr-1"></i> Filtrar
+          </button>
+        </div>
+
+        <!-- Exportar CSV (Solo Administradores) -->
+        <div class="mt-4 sm:mt-0 admin-only hidden">
+          <button id="export-csv-btn" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow transition cursor-pointer">
+            <i class="fa-solid fa-file-csv text-sm"></i>
+            <span>Exportar CSV</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Tabla de Informes de Incidencias -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-800/80 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+              <tr>
+                <th class="py-3 px-4">Severidad</th>
+                <th class="py-3 px-4">Tipo & Título</th>
+                <th class="py-3 px-4">Hora & Fecha</th>
+                <th class="py-3 px-4">Ubicación (GPS)</th>
+                <th class="py-3 px-4">Evidencia Fotográfica / OCR</th>
+                <th class="py-3 px-4">Dispositivo</th>
+                <th class="py-3 px-4">Estado</th>
+                <th class="py-3 px-4 text-right">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="reports-table-body" class="divide-y divide-slate-800/70 text-slate-300">
+              <tr>
+                <td colspan="8" class="text-center py-10 text-slate-500">Cargando informes...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Paginación -->
+        <div class="bg-slate-900 px-4 py-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+          <span id="pagination-info">Mostrando página 1</span>
+          <div class="flex gap-2">
+            <button id="prev-page-btn" class="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-white transition disabled:opacity-40">Anterior</button>
+            <button id="next-page-btn" class="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-white transition disabled:opacity-40">Siguiente</button>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- --------------------------------------------------------------------- -->
+    <!-- PESTAÑA 3: DISPOSITIVOS & HEARTBEATS                                  -->
+    <!-- --------------------------------------------------------------------- -->
+    <section id="tab-devices" class="tab-content hidden space-y-6 admin-only">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-base font-bold text-white">Dispositivos Android Conectados</h2>
+          <p class="text-xs text-slate-400">Monitoreo de estado vital, heartbeats, batería y temperatura en tiempo real.</p>
+        </div>
+        <button id="refresh-devices-btn" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-arrows-rotate"></i>
+          <span>Actualizar</span>
+        </button>
+      </div>
+
+      <!-- Sección de Nodos Pendientes de Autorización (Aparece cuando hay nodos nuevos) -->
+      <div id="pending-nodes-container" class="hidden bg-amber-950/30 border border-amber-500/40 rounded-2xl p-5 space-y-4 shadow-xl">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2.5 text-amber-400">
+            <i class="fa-solid fa-user-shield text-xl animate-pulse"></i>
+            <div>
+              <h3 class="text-sm font-bold text-white">Nodos Centinela Pendientes de Autorización</h3>
+              <p class="text-xs text-amber-200/80">Dispositivos móviles que han solicitado conectarse como nodos de la red.</p>
+            </div>
+          </div>
+          <span id="pending-nodes-count" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">0 pendientes</span>
+        </div>
+        <div id="pending-nodes-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+          <!-- Tarjetas de nodos pendientes insertadas por JS -->
+        </div>
+      </div>
+
+      <!-- Cuadrícula de Dispositivos Autorizados -->
+      <div class="pt-2">
+        <h3 class="text-xs font-semibold uppercase text-slate-400 mb-3 tracking-wider">Nodos Centinela Activos & Autorizados</h3>
+        <div id="devices-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <!-- Renderizado dinámico vía JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- --------------------------------------------------------------------- -->
+    <!-- PESTAÑA 4: SIMULADOR ANDROID (BANCO DE PRUEBAS)                       -->
+    <!-- --------------------------------------------------------------------- -->
+    <section id="tab-simulator" class="tab-content hidden space-y-6 admin-only">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+        <div class="border-b border-slate-800 pb-4 mb-6">
+          <div class="flex items-center gap-2">
+            <div class="p-2 bg-amber-500/10 text-amber-400 rounded-lg border border-amber-500/20">
+              <i class="fa-solid fa-microchip text-lg"></i>
+            </div>
+            <div>
+              <h2 class="text-base font-bold text-white">Simulador de Telemetría de Dispositivo Android</h2>
+              <p class="text-xs text-slate-400">Genera pruebas inmediatas de sacudidas sísmicas, fotos para OCR de inundación y heartbeats.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          
+          <!-- Seleccionar Dispositivo Emisor -->
+          <div class="md:col-span-3 bg-slate-800/40 p-4 rounded-xl border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Dispositivo para Pruebas:</label>
+              <select id="sim-device-select" class="bg-slate-800 border border-slate-700 rounded-lg text-xs text-white px-3 py-2 w-72 focus:outline-none focus:border-blue-500">
+                <!-- Dispositivos cargados dinámicamente -->
+              </select>
+            </div>
+            <div class="text-xs text-slate-400">
+              <span class="text-slate-500">API Key utilizada:</span>
+              <code id="sim-active-key" class="text-blue-400 bg-slate-900 px-2 py-1 rounded ml-1 font-mono">--</code>
+            </div>
+          </div>
+
+          <!-- PRUEBA 1: ACELERÓMETRO Y SISMO -->
+          <div class="bg-slate-800/50 border border-slate-700/60 rounded-xl p-5 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center gap-2 text-amber-400 mb-2">
+                <i class="fa-solid fa-earth-americas"></i>
+                <h3 class="text-sm font-bold text-white">1. Acelerómetro & Sismo</h3>
+              </div>
+              <p class="text-xs text-slate-400 mb-4">
+                Envía lecturas de aceleración en 3 ejes. Si la magnitud supera los <strong class="text-amber-300">14.5 m/s²</strong> se disparará la alerta de terremoto.
+              </p>
+              
+              <div class="space-y-2 mb-4 text-xs">
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Eje X:</span>
+                  <input id="sim-accel-x" type="number" step="0.1" value="0.2" class="w-20 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-right text-white">
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Eje Y:</span>
+                  <input id="sim-accel-y" type="number" step="0.1" value="0.1" class="w-20 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-right text-white">
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Eje Z:</span>
+                  <input id="sim-accel-z" type="number" step="0.1" value="9.8" class="w-20 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-right text-white">
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <button id="sim-send-accel-normal" class="w-full py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-semibold transition">
+                Enviar Telemetría Normal (1g)
+              </button>
+              <button id="sim-send-accel-quake" class="w-full py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-bold shadow-lg shadow-red-600/30 transition flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span>¡Simular Sismo Fuerte (18 m/s²)!</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- PRUEBA 2: CÁMARA EXTERNA & OCR INUNDACIÓN -->
+          <div class="bg-slate-800/50 border border-slate-700/60 rounded-xl p-5 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center gap-2 text-cyan-400 mb-2">
+                <i class="fa-solid fa-camera"></i>
+                <h3 class="text-sm font-bold text-white">2. Cámara Externa & OCR Inundación</h3>
+              </div>
+              <p class="text-xs text-slate-400 mb-4">
+                Envía una captura periódica de cámara al servidor Docker para análisis OCR de anegamiento de agua.
+              </p>
+
+              <div class="space-y-3 mb-4 text-xs">
+                <div>
+                  <label class="block text-slate-400 mb-1">Archivo de Imagen (Opcional):</label>
+                  <input id="sim-photo-file" type="file" accept="image/*" class="w-full text-xs text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-blue-600 file:text-white hover:file:bg-blue-500">
+                </div>
+                <div class="flex items-center gap-2">
+                  <input id="sim-photo-flood-check" type="checkbox" checked class="rounded border-slate-700 text-blue-600 focus:ring-0">
+                  <label for="sim-photo-flood-check" class="text-slate-300">Marcar como detección de inundación</label>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-slate-400">Nivel de Agua (cm):</span>
+                  <input id="sim-water-level" type="number" value="65" class="w-20 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-right text-white">
+                </div>
+              </div>
+            </div>
+
+            <button id="sim-send-photo-btn" class="w-full py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold shadow-lg shadow-cyan-600/30 transition flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-cloud-arrow-up"></i>
+              <span>Subir Foto & Verificar Inundación</span>
+            </button>
+          </div>
+
+          <!-- PRUEBA 3: HEARTBEAT & ESTADO VITAL -->
+          <div class="bg-slate-800/50 border border-slate-700/60 rounded-xl p-5 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center gap-2 text-emerald-400 mb-2">
+                <i class="fa-solid fa-heart-pulse"></i>
+                <h3 class="text-sm font-bold text-white">3. Heartbeat Vital</h3>
+              </div>
+              <p class="text-xs text-slate-400 mb-4">
+                Envía pulso de conectividad con batería, estado de carga y temperaturas del dispositivo.
+              </p>
+
+              <div class="space-y-2 mb-4 text-xs">
+                <div>
+                  <div class="flex justify-between mb-1">
+                    <span class="text-slate-400">Batería:</span>
+                    <span id="sim-battery-val" class="text-white font-bold">85%</span>
+                  </div>
+                  <input id="sim-battery-slider" type="range" min="5" max="100" value="85" class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                </div>
+
+                <div class="flex items-center justify-between pt-1">
+                  <span class="text-slate-400">¿Cargando?</span>
+                  <input id="sim-charging-check" type="checkbox" class="rounded border-slate-700 text-blue-600">
+                </div>
+
+                <div class="flex justify-between items-center">
+                  <span class="text-slate-400">Temp. Batería (°C):</span>
+                  <input id="sim-battery-temp" type="number" step="0.5" value="28.5" class="w-20 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-right text-white">
+                </div>
+
+                <div class="flex justify-between items-center">
+                  <span class="text-slate-400">Temp. CPU (°C):</span>
+                  <input id="sim-cpu-temp" type="number" step="0.5" value="34.0" class="w-20 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-right text-white">
+                </div>
+              </div>
+            </div>
+
+            <button id="sim-send-heartbeat-btn" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-heart"></i>
+              <span>Enviar Heartbeat Ahora</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- --------------------------------------------------------------------- -->
+    <!-- PESTAÑA 5: PANEL DE ADMINISTRACIÓN & AUDITORÍA (SOLO ADMINS)          -->
+    <!-- --------------------------------------------------------------------- -->
+    <section id="tab-admin" class="tab-content hidden space-y-6 admin-only">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <div class="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg border border-indigo-500/20">
+              <i class="fa-solid fa-user-shield text-lg"></i>
+            </div>
+            <div>
+              <h2 class="text-base font-bold text-white">Panel de Seguridad, Usuarios y Auditoría</h2>
+              <p class="text-xs text-slate-400">Autorización de nuevos administradores y registro integral de auditoría de eventos y fotos.</p>
+            </div>
+          </div>
+        </div>
+        <button id="refresh-admin-panel-btn" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition flex items-center gap-1.5 self-start sm:self-auto cursor-pointer">
+          <i class="fa-solid fa-arrows-rotate"></i>
+          <span>Actualizar Panel</span>
+        </button>
+      </div>
+
+      <!-- Tarjeta 1: Solicitudes Pendientes de Aprobación de Administrador -->
+      <div id="pending-admins-container" class="bg-amber-950/20 border border-amber-500/30 rounded-2xl p-5 space-y-4 shadow-xl">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2.5 text-amber-400">
+            <i class="fa-solid fa-user-clock text-xl animate-pulse"></i>
+            <div>
+              <h3 class="text-sm font-bold text-white">Solicitudes de Administrador Pendientes</h3>
+              <p class="text-xs text-amber-200/80">Personas que han solicitado credenciales de administrador desde el login principal.</p>
+            </div>
+          </div>
+          <span id="pending-admins-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">0 pendientes</span>
+        </div>
+        <div id="pending-admins-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
+          <div class="text-slate-500 text-xs py-4 col-span-full text-center">No hay solicitudes de administrador pendientes.</div>
+        </div>
+      </div>
+
+      <!-- Tarjeta 2: Administradores Aprobados y Activos -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2 text-slate-200">
+            <i class="fa-solid fa-users-gear text-indigo-400"></i>
+            <h3 class="text-sm font-bold text-white">Administradores Activos y Aprobados</h3>
+          </div>
+          <span id="active-admins-count" class="text-xs text-slate-400 font-mono">1 admin activo</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-800/80 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+              <tr>
+                <th class="py-2.5 px-3">Nombre</th>
+                <th class="py-2.5 px-3">Correo Electrónico</th>
+                <th class="py-2.5 px-3">Rol</th>
+                <th class="py-2.5 px-3">Estado</th>
+                <th class="py-2.5 px-3">Fecha Aprobación</th>
+              </tr>
+            </thead>
+            <tbody id="approved-admins-table-body" class="divide-y divide-slate-800/70 text-slate-300">
+              <tr>
+                <td colspan="5" class="text-center py-4 text-slate-500">Cargando administradores...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tarjeta 3: Registro de Auditoría del Sistema (Audit Log) -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div class="flex items-center gap-2 text-slate-200">
+            <i class="fa-solid fa-list-check text-emerald-400"></i>
+            <div>
+              <h3 class="text-sm font-bold text-white">Registro de Auditoría en Tiempo Real (Audit Log)</h3>
+              <p class="text-xs text-slate-400">Auditoría detallada de autenticación, altas de nodos, fotos subidas y política de retención.</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <select id="audit-filter-category" class="bg-slate-800 border border-slate-700 rounded-lg text-xs text-white px-2.5 py-1.5 focus:outline-none focus:border-blue-500">
+              <option value="">Todas las categorías</option>
+              <option value="auth">Autenticación & Cuentas</option>
+              <option value="devices">Dispositivos & Nodos</option>
+              <option value="camera">Cámara & Fotos Subidas</option>
+              <option value="incidents">Incidencias & Alertas</option>
+              <option value="system">Sistema</option>
+            </select>
+            <button id="refresh-audit-btn" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition cursor-pointer" title="Refrescar logs">
+              <i class="fa-solid fa-rotate-right text-xs"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-800/80 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+              <tr>
+                <th class="py-2.5 px-3">Fecha y Hora</th>
+                <th class="py-2.5 px-3">Categoría</th>
+                <th class="py-2.5 px-3">Acción</th>
+                <th class="py-2.5 px-3">Nivel</th>
+                <th class="py-2.5 px-3">Descripción & Detalles</th>
+              </tr>
+            </thead>
+            <tbody id="audit-table-body" class="divide-y divide-slate-800/70 text-slate-300">
+              <tr>
+                <td colspan="5" class="text-center py-6 text-slate-500 font-sans text-xs">Cargando registro de auditoría...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========================================================================= -->
+  <!-- ========================================================================= -->
+  <!-- MODAL: LOGIN / REGISTRO DE ADMINISTRADOR                                  -->
+  <!-- ========================================================================= -->
+  <div id="login-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl relative">
+      <button id="login-close-btn" class="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <!-- Encabezado con Icono -->
+      <div class="flex items-center gap-2 mb-4">
+        <div class="p-2.5 bg-blue-600/20 text-blue-400 rounded-xl border border-blue-500/30">
+          <i class="fa-solid fa-shield-halved text-lg"></i>
+        </div>
+        <div>
+          <h3 id="auth-modal-title" class="text-base font-bold text-white">Acceso Administrador</h3>
+          <p id="auth-modal-subtitle" class="text-xs text-slate-400">Ingreso exclusivo para operadores de emergencia</p>
+        </div>
+      </div>
+
+      <!-- FORMULARIO 1: INICIAR SESIÓN -->
+      <form id="login-form" class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Correo Electrónico</label>
+          <input id="login-email" type="email" required placeholder="admin@ejemplo.com" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Contraseña</label>
+          <input id="login-password" type="password" required placeholder="••••••••" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+        </div>
+
+        <div id="login-error-msg" class="text-xs text-red-400 hidden bg-red-950/40 p-2.5 rounded-lg border border-red-800/40"></div>
+
+        <button type="submit" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition shadow-lg shadow-blue-600/30 cursor-pointer">
+          Ingresar como Administrador
+        </button>
+
+        <div class="pt-3 border-t border-slate-800 text-center">
+          <button type="button" id="switch-to-register-btn" class="text-xs text-blue-400 hover:text-blue-300 hover:underline inline-flex items-center gap-1.5 cursor-pointer">
+            <i class="fa-solid fa-user-plus"></i>
+            <span>¿No tienes cuenta? Solicitar Registro</span>
+          </button>
+        </div>
+      </form>
+
+      <!-- FORMULARIO 2: REGISTRO DE ADMINISTRADOR (Solicitud pendiente) -->
+      <form id="register-admin-form" class="space-y-4 hidden">
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Nombre Completo</label>
+          <input id="reg-name" type="text" required placeholder="Ej: Carlos Silva" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Correo Electrónico</label>
+          <input id="reg-email" type="email" required placeholder="usuario@ejemplo.com" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Contraseña</label>
+          <input id="reg-password" type="password" required minlength="6" placeholder="Mínimo 6 caracteres" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+        </div>
+
+        <div id="reg-status-msg" class="text-xs hidden p-2.5 rounded-lg border"></div>
+
+        <button type="submit" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition shadow-lg shadow-indigo-600/30 cursor-pointer">
+          Solicitar Cuenta de Administrador
+        </button>
+
+        <div class="pt-3 border-t border-slate-800 text-center">
+          <button type="button" id="switch-to-login-btn" class="text-xs text-slate-400 hover:text-white hover:underline inline-flex items-center gap-1.5 cursor-pointer">
+            <i class="fa-solid fa-arrow-left"></i>
+            <span>¿Ya tienes cuenta? Iniciar Sesión</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- ========================================================================= -->
+  <!-- MODAL: VISOR DE EVIDENCIA, SISMO & OCR                                    -->
+  <!-- ========================================================================= -->
+  <div id="evidence-modal" class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] flex flex-col">
+      <button id="evidence-close-btn" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <div class="flex items-center gap-2 mb-1">
+        <div id="evidence-modal-icon-badge" class="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center">
+          <i class="fa-solid fa-camera"></i>
+        </div>
+        <div>
+          <h3 id="evidence-modal-title" class="text-base font-bold text-white">Evidencia & Telemetría</h3>
+          <p id="evidence-modal-subtitle" class="text-xs text-slate-400">Detalles capturados por el dispositivo Centinela</p>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto space-y-4 pt-2">
+        <!-- BLOQUE DESTACADO DE MAGNITUD DEL SISMO (Aparece en alertas sísmicas) -->
+        <div id="evidence-modal-seismic-box" class="hidden rounded-xl border border-amber-500/50 bg-gradient-to-r from-amber-950/40 via-slate-900 to-amber-950/30 p-4 shadow-xl space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2 text-amber-400">
+              <i class="fa-solid fa-house-crack text-xl animate-bounce"></i>
+              <div>
+                <span class="text-[10px] uppercase font-bold tracking-wider text-amber-400/80 block">Registro Telúrico / Acelerómetro</span>
+                <span class="text-xs font-bold text-white">Sacudida Sísmica Detectada</span>
+              </div>
+            </div>
+            <span id="evidence-modal-seismic-severity" class="px-2.5 py-0.5 rounded-full text-xs font-black uppercase bg-red-500/20 text-red-300 border border-red-500/40">
+              Alta Severidad
+            </span>
+          </div>
+
+          <!-- Medidor Principal de Magnitud -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/70 p-3 rounded-lg border border-amber-500/30">
+            <div>
+              <span class="text-[11px] text-slate-400 block">Magnitud Resultante (Vector Total):</span>
+              <div class="flex items-baseline gap-2">
+                <span id="evidence-modal-seismic-mag" class="text-2xl sm:text-3xl font-black font-mono text-amber-300 tracking-tight">-- m/s²</span>
+                <span class="text-xs text-slate-400">(Umbral: <span id="evidence-modal-seismic-threshold">14.50</span> m/s²)</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-amber-500/20 text-amber-200 border border-amber-500/40 animate-pulse">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span>Sismo Registrado</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- Desglose de Ejes Aceleración -->
+          <div class="grid grid-cols-3 gap-2 text-center text-xs">
+            <div class="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+              <span class="text-[10px] text-slate-500 block uppercase">Eje X</span>
+              <span id="evidence-modal-accel-x" class="font-mono font-bold text-slate-200">--</span>
+            </div>
+            <div class="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+              <span class="text-[10px] text-slate-500 block uppercase">Eje Y</span>
+              <span id="evidence-modal-accel-y" class="font-mono font-bold text-slate-200">--</span>
+            </div>
+            <div class="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+              <span class="text-[10px] text-slate-500 block uppercase">Eje Z</span>
+              <span id="evidence-modal-accel-z" class="font-mono font-bold text-slate-200">--</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contenedor de Imagen y Botón de Descarga -->
+        <div id="evidence-modal-image-container" class="bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shadow-lg">
+          <div class="flex items-center justify-center min-h-[220px] bg-slate-950 p-2">
+            <img id="evidence-modal-img" src="" alt="Evidencia" class="max-h-[350px] w-auto object-contain rounded-lg">
+          </div>
+          <div class="flex items-center justify-between p-3 bg-slate-900 border-t border-slate-800">
+            <div class="flex items-center gap-2 truncate mr-2">
+              <i class="fa-solid fa-image text-slate-500 text-xs"></i>
+              <span id="evidence-modal-filename" class="text-xs text-slate-300 font-mono truncate">foto_evidencia.jpg</span>
+            </div>
+            <a id="evidence-modal-download-btn" href="#" download="" target="_blank" class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition shadow-md shadow-blue-600/30 whitespace-nowrap">
+              <i class="fa-solid fa-download"></i>
+              <span>Descargar Foto</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Ubicación GPS con Enlace a Google Maps -->
+        <div class="bg-slate-800/40 rounded-xl p-3 border border-slate-700/60 flex items-center justify-between text-xs">
+          <span class="font-semibold text-slate-300 flex items-center gap-1.5">
+            <i class="fa-solid fa-location-dot text-red-400"></i>
+            <span>Coordenadas GPS:</span>
+          </span>
+          <a id="evidence-modal-gmaps-link" href="#" target="_blank" rel="noopener noreferrer" class="font-mono text-blue-400 hover:text-blue-300 hover:underline inline-flex items-center gap-1.5 font-bold" title="Abrir en Google Maps">
+            <span id="evidence-modal-coords">--</span>
+            <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+          </a>
+        </div>
+
+        <!-- Detalles del OCR / Inundación (Se oculta si no aplica) -->
+        <div id="evidence-modal-ocr-box" class="bg-slate-800/50 rounded-xl p-4 border border-slate-700/60 text-xs space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="font-semibold text-slate-300">Detección de Inundación:</span>
+            <span id="evidence-modal-flood-badge" class="px-2 py-0.5 rounded text-[11px] font-bold bg-cyan-600/20 text-cyan-400 border border-cyan-500/30">Normal</span>
+          </div>
+
+          <div class="flex items-center justify-between">
+            <span class="font-semibold text-slate-300">Nivel de Agua / Regla Hidrométrica:</span>
+            <span id="evidence-modal-water-level" class="text-white font-mono font-bold">--</span>
+          </div>
+
+          <div class="flex items-center justify-between">
+            <span class="font-semibold text-slate-300">Confianza del Algoritmo OCR:</span>
+            <span id="evidence-modal-confidence" class="text-emerald-400 font-mono">--</span>
+          </div>
+
+          <div class="pt-2 border-t border-slate-700">
+            <span class="font-semibold text-slate-300 block mb-1">Texto Extraído por OCR:</span>
+            <div id="evidence-modal-ocr-text" class="bg-slate-900 p-2.5 rounded border border-slate-800 font-mono text-slate-300 text-[11px] whitespace-pre-wrap">--</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL: RESOLVER INCIDENCIA (Solo Administrador)                           -->
+  <!-- ========================================================================= -->
+  <div id="resolve-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+      <button id="resolve-close-btn" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <h3 class="text-base font-bold text-white mb-1">Gestionar Estado de Incidencia</h3>
+      <p id="resolve-incident-title" class="text-xs text-slate-400 mb-4">Actualizar estado operativo</p>
+
+      <form id="resolve-form" class="space-y-4">
+        <input type="hidden" id="resolve-incident-id">
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Nuevo Estado</label>
+          <select id="resolve-status-select" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+            <option value="resuelta">Marcar como Resuelta</option>
+            <option value="en_proceso">En Proceso / Cuadrilla Despachada</option>
+            <option value="falsa_alarma">Falsa Alarma</option>
+            <option value="activa">Reactivar Incidencia</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Notas de Resolución / Observaciones</label>
+          <textarea id="resolve-notes" rows="3" placeholder="Ej: Zona inspeccionada por personal de emergencia, sin daños estructurales." class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"></textarea>
+        </div>
+
+        <button type="submit" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition shadow-lg shadow-emerald-600/30">
+          Guardar Cambios
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- SCRIPTS FRONTEND -->
+  <script src="/js/map.js"></script>
+  <script src="/js/simulator.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

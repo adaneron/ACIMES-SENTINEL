@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: rally_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: rally_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - rally_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d rally_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rally_app
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      NODE_ENV: production
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/rally_db
+      JWT_SECRET: super_secret_jwt_key_rally_2026_seismic_flood_platform
+      JWT_EXPIRES_IN: 7d
+      ADMIN_NAME: "Administrador del Sistema"
+      ADMIN_EMAIL: admin@rally2026.com
+      ADMIN_PASSWORD: admin123456
+      SEISMIC_ACCEL_THRESHOLD: 14.5
+      HEARTBEAT_TIMEOUT_SECONDS: 120
+      EXTERNAL_OCR_API_URL: ""
+      EXTERNAL_OCR_API_KEY: ""
+      CORS_ORIGIN: "*"
+      TZ: "America/Caracas"
+      TELEGRAM_BOT_TOKEN: "8628747073:AAE2qJ183pUWIXu-bcD6MHlS0Gdk4l5JRaQ"
+    volumes:
+      - rally_uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  rally_postgres_data:
+    driver: local
+  rally_uploads_data:
+    driver: local

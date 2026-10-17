@@ -1,0 +1,120 @@
+/* Estilos personalizados para la Plataforma de Telemetría RALLY 2026 */
+
+:root {
+  --color-primary: #3b82f6;
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+  --color-success: #10b981;
+}
+
+/* Animación de pulso sísmico en el mapa */
+@keyframes seismic-wave {
+  0% {
+    transform: scale(0.2);
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(3.5);
+    opacity: 0;
+  }
+}
+
+.seismic-pulse {
+  width: 40px;
+  height: 40px;
+  background-color: rgba(239, 68, 68, 0.4);
+  border: 2px solid #ef4444;
+  border-radius: 50%;
+  position: absolute;
+  animation: seismic-wave 2s infinite ease-out;
+  pointer-events: none;
+}
+
+/* Animación para ondas de inundación */
+@keyframes flood-ripple {
+  0% {
+    transform: scale(0.3);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+
+.flood-pulse {
+  width: 40px;
+  height: 40px;
+  background-color: rgba(6, 182, 212, 0.35);
+  border: 2px solid #06b6d4;
+  border-radius: 50%;
+  position: absolute;
+  animation: flood-ripple 2.5s infinite ease-out;
+  pointer-events: none;
+}
+
+/* Toast de notificación emergente */
+.toast-alert {
+  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Pulso de indicador en vivo */
+@keyframes live-dot {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.animate-live {
+  animation: live-dot 1.5s infinite ease-in-out;
+}
+
+/* Barra de desplazamiento personalizada */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Estilo para los popups de Leaflet */
+.leaflet-popup-content-wrapper {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  border: 1px solid #334155 !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+}
+
+.leaflet-popup-tip {
+  background: #0f172a !important;
+  border: 1px solid #334155 !important;
+}
