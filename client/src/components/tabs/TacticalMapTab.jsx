@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { ShieldAlert, Activity, Waves, Radio, MapPin, Eye, CheckCircle } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { ShieldAlert, Activity, Waves, Radio, MapPin, Eye, CheckCircle, Clock } from 'lucide-react';
 import TacticalMap from '../TacticalMap';
 
 export default function TacticalMapTab({
@@ -12,6 +12,25 @@ export default function TacticalMapTab({
 }) {
   const [mapCenter, setMapCenter] = useState(null);
   const [selectedIncidentId, setSelectedIncidentId] = useState(null);
+  const [showPastAlerts, setShowPastAlerts] = useState(false);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+
+  // Reloj interno de actualización cada 5 segundos para expirar alertas al cumplirse el minuto
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowTick(Date.now());
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Función de filtro: ¿ocurrió en los últimos 60 segundos (1 minuto)?
+  const isRecentAlert = useCallback((item) => {
+    const dateVal = item?.detectedAt || item?.createdAt || item?.timestamp;
+    if (!dateVal) return false;
+    const timeMs = new Date(dateVal).getTime();
+    if (isNaN(timeMs)) return false;
+    return (nowTick - timeMs) <= 60000; // 60 segundos
+  }, [nowTick]);
 
   const activeIncidents = incidents.filter((i) => i.status === 'activa');
   const criticalCount = activeIncidents.filter((i) => i.severity === 'critica' || i.severity === 'alta').length;
@@ -32,6 +51,15 @@ export default function TacticalMapTab({
       return timeB - timeA;
     });
   })();
+
+  // Aplicar filtro de 1 minuto si no está marcado "ver alertas pasadas"
+  const displayedIncidents = showPastAlerts
+    ? incidents
+    : incidents.filter(isRecentAlert);
+
+  const displayedFeedReports = showPastAlerts
+    ? allFeedReports
+    : allFeedReports.filter(isRecentAlert);
 
   const handleCenterAlert = useCallback((alert, openModal = false) => {
     const lat = alert.location?.latitude ?? alert.latitude;
@@ -122,13 +150,41 @@ export default function TacticalMapTab({
         </div>
       </div>
 
+      {/* Barra de Control Táctico de Visualización */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-[#0b101b] border border-slate-800 shadow-lg">
+        <div className="flex items-center gap-2.5">
+          <div className={`w-2.5 h-2.5 rounded-full ${displayedFeedReports.length > 0 ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`} />
+          <span className="text-xs font-mono font-bold text-white tracking-wide">
+            {showPastAlerts ? 'MODO AUDITORÍA: VISOR DE HISTORIAL COMPLETO' : 'MODO TÁCTICO: ALERTAS EN VIVO (ÚLTIMO MINUTO)'}
+          </span>
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800">
+            {displayedFeedReports.length} {displayedFeedReports.length === 1 ? 'alerta' : 'alertas'} en pantalla
+          </span>
+        </div>
+
+        <label className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700/80 hover:border-cyan-500/50 cursor-pointer transition select-none self-start sm:self-auto">
+          <input
+            type="checkbox"
+            checked={showPastAlerts}
+            onChange={(e) => setShowPastAlerts(e.target.checked)}
+            className="w-4 h-4 rounded bg-slate-950 border-slate-700 text-cyan-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-cyan-500"
+          />
+          <span className="text-xs font-mono text-slate-200 font-bold">
+            Ver alertas pasadas...
+          </span>
+          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold ${showPastAlerts ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'bg-slate-800 text-slate-400'}`}>
+            {showPastAlerts ? 'Histórico ON' : 'Último 1 min'}
+          </span>
+        </label>
+      </div>
+
       {/* Main Grid: Mapa Táctico (2 columnas) + Feed Transmisión en Vivo (1 columna) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* Mapa Táctico (2 columnas) */}
         <div className="lg:col-span-2 space-y-3">
           <TacticalMap
-            incidents={incidents}
+            incidents={displayedIncidents}
             devices={devices}
             centerCoords={mapCenter}
             selectedIncidentId={selectedIncidentId}
@@ -137,29 +193,33 @@ export default function TacticalMapTab({
           />
         </div>
 
-        {/* Feed de Transmisión en Vivo (Incluye alertas en vivo y reportes anteriores ordenados del más nuevo al más viejo) */}
+        {/* Feed de Transmisión en Vivo */}
         <div className="bg-[#0b101b] border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col h-[540px]">
           <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
+              <span className={`w-2.5 h-2.5 rounded-full ${displayedFeedReports.length > 0 ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`}></span>
               <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-white">
-                Transmisión en Vivo
+                {showPastAlerts ? 'Historial de Alertas' : 'En Vivo (Último Minuto)'}
               </h3>
             </div>
             <span className="text-[9px] font-mono font-bold bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700">
-              {allFeedReports.length} REPORTES
+              {displayedFeedReports.length} {displayedFeedReports.length === 1 ? 'REPORTE' : 'REPORTES'}
             </span>
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 tactical-scrollbar">
-            {allFeedReports.length === 0 ? (
+            {displayedFeedReports.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center py-8 text-slate-500 text-xs font-mono">
-                <CheckCircle className="w-8 h-8 text-slate-600 mb-2" />
-                <span>Sin incidentes críticos registrados.</span>
-                <span className="text-[10px] text-slate-600 mt-1">Canal de telemetría a la espera de señales</span>
+                <CheckCircle className="w-8 h-8 text-emerald-500/60 mb-2" />
+                <span className="text-slate-300 font-bold">
+                  {showPastAlerts ? 'Sin incidentes registrados en el historial.' : 'Sin incidentes en el último minuto.'}
+                </span>
+                <span className="text-[10px] text-slate-500 mt-1">
+                  {showPastAlerts ? 'El sistema se encuentra en normalidad total.' : 'Marca "Ver alertas pasadas..." para consultar eventos anteriores.'}
+                </span>
               </div>
             ) : (
-              allFeedReports.map((alert, idx) => {
+              displayedFeedReports.map((alert, idx) => {
                 const isQuake = alert.incidentType === 'sismo';
                 const isFlood = alert.incidentType === 'inundacion';
                 const mag = alert.sensorSnapshot?.magnitude ? parseFloat(alert.sensorSnapshot.magnitude).toFixed(2) : null;
