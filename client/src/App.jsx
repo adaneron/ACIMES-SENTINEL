@@ -15,7 +15,8 @@ import {
   Clock,
   Wifi,
   WifiOff,
-  X
+  X,
+  Award
 } from 'lucide-react';
 
 import TacticalMapTab from './components/tabs/TacticalMapTab';
@@ -27,6 +28,7 @@ import AdminPanelTab from './components/tabs/AdminPanelTab';
 import AuthModal from './components/AuthModal';
 import EvidenceModal from './components/EvidenceModal';
 import ResolveModal from './components/ResolveModal';
+import WelcomeNoticeModal from './components/WelcomeNoticeModal';
 
 import { playAlarm, playFloodAlert, playBeep } from './utils/audio';
 
@@ -56,6 +58,13 @@ export default function App() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [evidenceModalData, setEvidenceModalData] = useState(null);
   const [resolveModalData, setResolveModalData] = useState(null);
+  const [welcomeNoticeOpen, setWelcomeNoticeOpen] = useState(() => {
+    try {
+      return sessionStorage.getItem('sentinel_dismiss_welcome_notice') !== 'true';
+    } catch {
+      return true;
+    }
+  });
 
   // Estados Operativos
   const [socketConnected, setSocketConnected] = useState(false);
@@ -408,6 +417,17 @@ export default function App() {
               <span>{socketConnected ? 'TELEMETRÍA EN VIVO' : 'RECONECTANDO'}</span>
             </div>
 
+            {/* Botón Comunicado Rally 2026 */}
+            <button
+              type="button"
+              onClick={() => setWelcomeNoticeOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-950/40 hover:bg-cyan-900/60 border border-cyan-500/30 hover:border-cyan-400 text-cyan-300 text-[11px] font-mono transition-all shadow-sm"
+              title="Ver comunicado del Rally Latinoamericano de Innovación 2026"
+            >
+              <Award className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="hidden sm:inline font-bold">Rally 2026</span>
+            </button>
+
             {/* Audio Toggle */}
             <button
               type="button"
@@ -620,6 +640,11 @@ export default function App() {
       </main>
 
       {/* MODALES */}
+      <WelcomeNoticeModal
+        isOpen={welcomeNoticeOpen}
+        onClose={() => setWelcomeNoticeOpen(false)}
+      />
+
       <AuthModal
         isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
