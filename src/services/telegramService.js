@@ -4,7 +4,7 @@ import { eq, desc } from 'drizzle-orm';
 import { db } from '../config/database.js';
 import { emergencyContacts, cameraEvidences, auditLogs } from '../db/schema.js';
 
-export const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8628747073:AAE2qJ183pUWIXu-bcD6MHlS0Gdk4l5JRaQ';
+export const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 
 /**
  * Consulta la API getUpdates de Telegram para listar chats recientes que han iniciado el bot (/start)

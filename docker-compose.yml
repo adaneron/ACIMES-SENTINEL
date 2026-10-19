@@ -26,21 +26,21 @@ services:
     ports:
       - "4000:4000"
     environment:
-      PORT: 4000
+      PORT: ${PORT:-4000}
       NODE_ENV: production
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/rally_db
-      JWT_SECRET: super_secret_jwt_key_rally_2026_seismic_flood_platform
-      JWT_EXPIRES_IN: 7d
-      ADMIN_NAME: "Administrador del Sistema"
-      ADMIN_EMAIL: admin@rally2026.com
-      ADMIN_PASSWORD: admin123456
-      SEISMIC_ACCEL_THRESHOLD: 14.5
-      HEARTBEAT_TIMEOUT_SECONDS: 120
-      EXTERNAL_OCR_API_URL: ""
-      EXTERNAL_OCR_API_KEY: ""
-      CORS_ORIGIN: "*"
-      TZ: "America/Caracas"
-      TELEGRAM_BOT_TOKEN: "8628747073:AAE2qJ183pUWIXu-bcD6MHlS0Gdk4l5JRaQ"
+      JWT_SECRET: ${JWT_SECRET:-super_secret_jwt_key_rally_2026_seismic_flood_platform}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      ADMIN_NAME: ${ADMIN_NAME:-"Administrador del Sistema"}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@rally2026.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123456}
+      SEISMIC_ACCEL_THRESHOLD: ${SEISMIC_ACCEL_THRESHOLD:-14.5}
+      HEARTBEAT_TIMEOUT_SECONDS: ${HEARTBEAT_TIMEOUT_SECONDS:-120}
+      EXTERNAL_OCR_API_URL: ${EXTERNAL_OCR_API_URL:-""}
+      EXTERNAL_OCR_API_KEY: ${EXTERNAL_OCR_API_KEY:-""}
+      CORS_ORIGIN: ${CORS_ORIGIN:-"*"}
+      TZ: ${TZ:-"America/Caracas"}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
     volumes:
       - rally_uploads_data:/app/uploads
     depends_on:
