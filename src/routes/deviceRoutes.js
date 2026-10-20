@@ -335,9 +335,38 @@ router.delete('/:id', requireAdmin, async (req, res, next) => {
       });
     }
 
+    try {
+      await createAuditLog({
+        action: 'device_deleted',
+        category: 'devices',
+        severity: 'warning',
+        userId: req.user?.id || null,
+        description: `El administrador "${req.user?.name || 'Admin'}" eliminó el nodo "${deleted.name}" (${deleted.deviceIdentifier}). Deberá solicitar autorización nuevamente.`,
+        metadata: {
+          deletedDeviceId: deleted.id,
+          name: deleted.name,
+          deviceIdentifier: deleted.deviceIdentifier,
+          model: deleted.model,
+        },
+      });
+    } catch (auditErr) {
+      console.warn('⚠️ No se pudo registrar auditoría de eliminación de nodo:', auditErr.message);
+    }
+
+    getIO()?.emit('device:deleted', {
+      deviceId: deleted.id,
+      name: deleted.name,
+      deviceIdentifier: deleted.deviceIdentifier,
+    });
+    getIO()?.emit('node:deleted', {
+      deviceId: deleted.id,
+      deviceIdentifier: deleted.deviceIdentifier,
+    });
+
     return res.json({
       success: true,
-      message: 'Dispositivo eliminado.',
+      message: `Nodo "${deleted.name}" eliminado correctamente. Deberá solicitar autorización nuevamente.`,
+      device: deleted,
     });
   } catch (error) {
     next(error);

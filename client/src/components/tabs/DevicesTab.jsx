@@ -16,7 +16,8 @@ import {
   AlertCircle,
   Clock,
   Volume2,
-  VolumeX
+  VolumeX,
+  Trash2
 } from 'lucide-react';
 
 export default function DevicesTab({
@@ -43,6 +44,7 @@ export default function DevicesTab({
   const [photoRequestErrorMap, setPhotoRequestErrorMap] = useState({});
 
   const [togglingMuteId, setTogglingMuteId] = useState(null);
+  const [deletingDeviceId, setDeletingDeviceId] = useState(null);
 
   const handleToggleMute = async (deviceId, currentMuted) => {
     if (!token) return;
@@ -231,6 +233,36 @@ export default function DevicesTab({
     }
   };
 
+  const handleDeleteDevice = async (deviceId, deviceName) => {
+    if (!token) return;
+    const confirmed = window.confirm(
+      `⚠️ ¿Estás seguro de que deseas eliminar el nodo "${deviceName}"?\n\n` +
+      `Al eliminarlo, el dispositivo perderá su conexión y autorización de inmediato, por lo que tendrá que volver a solicitar autorización para conectarse a la red.`
+    );
+    if (!confirmed) return;
+
+    setDeletingDeviceId(deviceId);
+    try {
+      const res = await fetch(`/api/devices/${deviceId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (data.success) {
+        onRefreshDevices();
+      } else {
+        alert(data.error || 'Error al eliminar el nodo.');
+      }
+    } catch (err) {
+      alert(`Error de red al eliminar el nodo: ${err.message}`);
+    } finally {
+      setDeletingDeviceId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
 
@@ -288,6 +320,15 @@ export default function DevicesTab({
                 </div>
 
                 <div className="pt-2 border-t border-slate-800 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteDevice(dev.id, dev.name)}
+                    disabled={deletingDeviceId === dev.id}
+                    className="p-1 rounded bg-slate-800 hover:bg-red-950/60 text-slate-500 hover:text-red-400 border border-slate-700 transition cursor-pointer"
+                    title="Eliminar este nodo permanentemente"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                   <button
                     onClick={() => handleRejectNode(dev.id, dev.name)}
                     className="px-2.5 py-1 rounded bg-slate-800 hover:bg-red-950/40 text-slate-400 hover:text-red-300 border border-slate-700 text-xs font-semibold transition cursor-pointer"
@@ -404,6 +445,16 @@ export default function DevicesTab({
                             <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-400 animate-ping' : 'bg-red-500'}`} />
                             {isOnline ? 'ONLINE' : 'OFFLINE'}
                           </span>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDevice(dev.id, dev.name)}
+                            disabled={deletingDeviceId === dev.id}
+                            title="Eliminar este nodo (requerirá nueva autorización)"
+                            className="p-1 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-950/40 border border-transparent hover:border-red-500/30 transition cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -670,6 +721,20 @@ export default function DevicesTab({
                             <span>{togglingMuteId === dev.id ? 'Silenciando...' : '🔇 Silenciar / Pausar Alertas del Nodo'}</span>
                           </>
                         )}
+                      </button>
+                    </div>
+
+                    {/* Botón de Eliminar Nodo */}
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteDevice(dev.id, dev.name)}
+                        disabled={deletingDeviceId === dev.id}
+                        className="w-full py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm cursor-pointer border border-red-500/30 bg-red-950/20 hover:bg-red-900/40 text-red-300 hover:text-red-100 shadow-red-950/20"
+                        title="Eliminar este nodo para requerir que vuelva a solicitar autorización"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                        <span>{deletingDeviceId === dev.id ? 'Eliminando nodo...' : '🗑️ Eliminar Nodo (Requerir Re-autorización)'}</span>
                       </button>
                     </div>
 

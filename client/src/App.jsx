@@ -291,6 +291,23 @@ export default function App() {
       );
     });
 
+    // Eliminación de un nodo Centinela
+    socket.on('device:deleted', (data) => {
+      setDevices((prev) => prev.filter((d) => d.id !== data.deviceId && d.id !== data.id));
+      showToast('Nodo Eliminado', 'info', `El nodo "${data.name || ''}" fue eliminado de la red.`);
+      fetchDevices();
+      fetchIncidentsAndStats();
+    });
+
+    // Nueva solicitud de registro de nodo Centinela (requiere autorización)
+    socket.on('node:registration_request', (nodeData) => {
+      fetchDevices();
+      if (currentUser?.role === 'admin') {
+        if (audioEnabled) playBeep(800, 250);
+        showToast('Nuevo Nodo Conectado', 'warning', `"${nodeData.name}" solicita autorización como Centinela.`);
+      }
+    });
+
     // Nueva evidencia fotográfica capturada por un nodo
     socket.on('device:evidence_new', (_data) => {
       showToast('Nueva Evidencia Capturada', 'info', `Foto recibida del nodo.`);
